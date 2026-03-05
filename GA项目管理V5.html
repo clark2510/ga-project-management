@@ -1,0 +1,1125 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>GA项目管理系统</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link href="https://cdn.jsdelivr.net/npm/font-awesome@4.7.0/css/font-awesome.min.css" rel="stylesheet">
+    <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.8/dist/chart.umd.min.js"></script>
+    <script>
+        tailwind.config = {
+            theme: {
+                extend: {
+                    colors: {
+                        primary: '#1d4ed8',
+                        secondary: '#64748b',
+                        success: '#10b981',
+                        warning: '#f59e0b',
+                        danger: '#ef4444',
+                        info: '#3b82f6',
+                        light: '#f8fafc',
+                        dark: '#0f172a'
+                    },
+                    fontFamily: {
+                        sans: ['Segoe UI', 'Roboto', 'system-ui', 'sans-serif']
+                    }
+                }
+            }
+        }
+    </script>
+    <style type="text/tailwindcss">
+        @layer utilities {
+            .content-auto {
+                content-visibility: auto;
+            }
+            .glass-effect {
+                background: rgba(255, 255, 255, 0.8);
+                backdrop-filter: blur(10px);
+                border: 1px solid rgba(255, 255, 255, 0.2);
+            }
+            .shadow-card {
+                box-shadow: 0 4px 20px rgba(0, 0, 0, 0.08);
+            }
+            .transition-all-300 {
+                transition: all 0.3s ease;
+            }
+            /* 补充按钮样式 */
+            .btn {
+                @apply px-4 py-2 rounded-lg font-medium transition-all-300;
+            }
+            .btn-primary {
+                @apply bg-primary text-white hover:bg-primary/90;
+            }
+            .btn-secondary {
+                @apply bg-gray-200 text-gray-800 hover:bg-gray-300;
+            }
+            .btn-danger {
+                @apply bg-danger text-white hover:bg-danger/90;
+            }
+        }
+    </style>
+    <style>
+        * {
+            box-sizing: border-box;
+        }
+        body {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            margin: 0;
+            min-height: 100vh;
+            padding: 20px;
+        }
+        .app-container {
+            background: white;
+            border-radius: 28px;
+            box-shadow: 0 20px 40px rgba(0,0,0,0.12);
+            overflow: hidden;
+            padding: 28px 28px 32px;
+            position: relative;
+            max-width: 1480px;
+            margin: 0 auto;
+        }
+        .view {
+            display: none;
+        }
+        .view.active {
+            display: block;
+        }
+        .project-card {
+            transition: all 0.3s ease;
+        }
+        .project-card:hover {
+            transform: translateY(-5px);
+        }
+        .progress-bar-fill {
+            transition: width 0.5s ease;
+        }
+        .gantt-cell {
+            transition: background-color 0.3s ease;
+        }
+        .nav-tab {
+            position: relative;
+            transition: all 0.3s ease;
+        }
+        .nav-tab.active::after {
+            content: '';
+            position: absolute;
+            bottom: -2px;
+            left: 0;
+            right: 0;
+            height: 3px;
+            background-color: #1d4ed8;
+            border-radius: 3px;
+        }
+        .chart-container {
+            position: relative;
+            height: 300px;
+            width: 100%;
+        }
+        .modal {
+            backdrop-filter: blur(5px);
+        }
+        .tooltip {
+            position: relative;
+            display: inline-block;
+        }
+        .tooltip .tooltip-text {
+            visibility: hidden;
+            width: 120px;
+            background-color: #333;
+            color: #fff;
+            text-align: center;
+            border-radius: 6px;
+            padding: 5px;
+            position: absolute;
+            z-index: 1;
+            bottom: 125%;
+            left: 50%;
+            margin-left: -60px;
+            opacity: 0;
+            transition: opacity 0.3s;
+        }
+        .tooltip:hover .tooltip-text {
+            visibility: visible;
+            opacity: 1;
+        }
+        @media (max-width: 768px) {
+            .app-container {
+                padding: 16px;
+                border-radius: 16px;
+            }
+            .navbar {
+                flex-direction: column;
+                gap: 12px;
+            }
+            .new-project-btn {
+                position: static !important;
+                transform: none !important;
+                width: 100%;
+            }
+        }
+        /* 表格样式补充 */
+        table {
+            border-collapse: collapse;
+        }
+        th, td {
+            padding: 8px;
+            text-align: left;
+            border: 1px solid #e5e7eb;
+        }
+        th {
+            font-weight: 600;
+        }
+    </style>
+</head>
+<body>
+<div class="app-container">
+    <!-- 顶部导航 -->
+    <div class="navbar flex items-center justify-between mb-6 flex-wrap gap-4">
+        <div class="logo-area flex items-center gap-3 bg-blue-50 px-6 py-2 rounded-full shadow-sm">
+            <span class="logo-icon text-2xl">🏭</span>
+            <span class="logo-text text-xl font-bold text-gray-800">GA 项目管理系统</span>
+        </div>
+        <div class="flex items-center gap-3">
+            <button class="btn-nav px-4 py-2 text-sm font-medium rounded-lg transition-all-300 active text-primary font-semibold" data-view="dashboardView">
+                <i class="fa fa-tachometer mr-1"></i> 总览
+            </button>
+            <button class="btn-nav px-4 py-2 text-sm font-medium rounded-lg transition-all-300" data-view="kanbanView">
+                <i class="fa fa-columns mr-1"></i> 看板
+            </button>
+            <button class="btn-nav px-4 py-2 text-sm font-medium rounded-lg transition-all-300" data-view="statsView">
+                <i class="fa fa-bar-chart mr-1"></i> 数据统计
+            </button>
+            <button class="btn btn-primary new-project-btn ml-2" id="newProjectBtn">
+                <i class="fa fa-plus mr-1"></i> 新建项目
+            </button>
+        </div>
+    </div>
+
+    <!-- 视图1: 项目总览主页 -->
+    <div id="dashboardView" class="view active">
+        <div class="mb-4 text-gray-600">所有项目 · 点击卡片进入详细计划表</div>
+        <div id="projectList" class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-5 mt-5"></div>
+    </div>
+
+    <!-- 视图2: 看板视图 -->
+    <div id="kanbanView" class="view">
+        <div class="mb-6">
+            <h2 class="text-xl font-bold text-gray-800 mb-4">项目看板</h2>
+            <div class="grid grid-cols-1 md:grid-cols-4 gap-4" id="kanbanColumns">
+                <!-- 看板列将通过JS动态生成 -->
+            </div>
+        </div>
+    </div>
+
+    <!-- 视图3: 数据统计视图 -->
+    <div id="statsView" class="view">
+        <div class="mb-6">
+            <h2 class="text-xl font-bold text-gray-800 mb-4">项目数据统计</h2>
+            <div class="grid grid-cols-1 lg:grid-cols-2 gap-6">
+                <div class="bg-white rounded-xl shadow-card p-4">
+                    <h3 class="text-lg font-semibold mb-3">项目状态分布</h3>
+                    <div class="chart-container">
+                        <canvas id="projectStatusChart"></canvas>
+                    </div>
+                </div>
+                <div class="bg-white rounded-xl shadow-card p-4">
+                    <h3 class="text-lg font-semibold mb-3">任务完成趋势</h3>
+                    <div class="chart-container">
+                        <canvas id="taskCompletionChart"></canvas>
+                    </div>
+                </div>
+            </div>
+            <div class="grid grid-cols-1 md:grid-cols-3 gap-4 mt-6">
+                <div class="bg-blue-50 rounded-xl p-4 text-center">
+                    <div class="text-3xl font-bold text-blue-600" id="totalProjects">0</div>
+                    <div class="text-gray-600 mt-1">总项目数</div>
+                </div>
+                <div class="bg-green-50 rounded-xl p-4 text-center">
+                    <div class="text-3xl font-bold text-green-600" id="completedProjects">0</div>
+                    <div class="text-gray-600 mt-1">已完成项目</div>
+                </div>
+                <div class="bg-yellow-50 rounded-xl p-4 text-center">
+                    <div class="text-3xl font-bold text-yellow-600" id="totalTasks">0</div>
+                    <div class="text-gray-600 mt-1">总任务数</div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- 视图4: 单个项目详情 -->
+    <div id="projectDetailView" class="view">
+        <div class="detail-header flex items-center gap-4 mb-6 flex-wrap">
+            <button class="back-btn text-2xl cursor-pointer hover:text-primary transition-all-300" id="backToDashboardBtn">
+                <i class="fa fa-arrow-left"></i>
+            </button>
+            <h2 id="currentProjectName" class="text-xl font-bold text-gray-800">项目名称</h2>
+            <span class="badge bg-blue-100 text-blue-800 px-3 py-1 rounded-full text-sm" id="taskCountBadge">0 个任务</span>
+            <div class="flex-1"></div>
+            <button class="btn btn-danger" id="deleteProjectBtn">
+                <i class="fa fa-trash mr-1"></i> 删除项目
+            </button>
+        </div>
+        
+        <!-- 任务表单 -->
+        <div class="task-form bg-blue-50 rounded-xl p-4 mb-6 border border-blue-100">
+            <div class="grid grid-cols-1 md:grid-cols-3 lg:grid-cols-4 gap-4">
+                <div class="form-field">
+                    <label class="block text-xs font-bold text-gray-700 mb-1">📋 任务名称</label>
+                    <input type="text" id="taskNameInput" placeholder="例: 电气采购" value="新任务" 
+                           class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary">
+                </div>
+                <div class="form-field">
+                    <label class="block text-xs font-bold text-gray-700 mb-1">📦 出货时间</label>
+                    <input type="text" id="deliveryInput" placeholder="3月18日" 
+                           class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary">
+                </div>
+                <div class="form-field">
+                    <label class="block text-xs font-bold text-gray-700 mb-1">🔧 改机时间</label>
+                    <input type="text" id="modifyInput" placeholder="3/18~3/31" 
+                           class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary">
+                </div>
+                <div class="form-field">
+                    <label class="block text-xs font-bold text-gray-700 mb-1">📊 状态</label>
+                    <select id="statusInput" class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary">
+                        <option value="Plan">Plan</option>
+                        <option value="进行中">进行中</option>
+                        <option value="已完成">已完成</option>
+                        <option value="延迟">延迟</option>
+                    </select>
+                </div>
+                <div class="form-field">
+                    <label class="block text-xs font-bold text-gray-700 mb-1">🧑 负责人</label>
+                    <input type="text" id="leaderInput" placeholder="志飞" 
+                           class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary">
+                </div>
+                <div class="form-field">
+                    <label class="block text-xs font-bold text-gray-700 mb-1">⚙️ 项目设备</label>
+                    <input type="text" id="equipmentInput" placeholder="电气采购" 
+                           class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary">
+                </div>
+                <div class="form-field">
+                    <label class="block text-xs font-bold text-gray-700 mb-1">📅 计划时段</label>
+                    <input type="text" id="planPeriodInput" placeholder="3/6~3/8" value="3/6~3/8" 
+                           class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary">
+                </div>
+                <div class="form-field">
+                    <label class="block text-xs font-bold text-gray-700 mb-1">📅 实际时段</label>
+                    <input type="text" id="actualPeriodInput" placeholder="3/6~3/8" value="3/6~3/8" 
+                           class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary">
+                </div>
+                <div class="form-field flex items-end">
+                    <div class="flex gap-2 w-full">
+                        <button class="btn btn-primary w-full" id="saveTaskBtn">
+                            <i class="fa fa-save mr-1"></i> 保存任务
+                        </button>
+                        <button class="btn btn-secondary" id="cancelTaskEditBtn">
+                            <i class="fa fa-times mr-1"></i> 取消
+                        </button>
+                    </div>
+                </div>
+            </div>
+        </div>
+        
+        <!-- 甘特表格 -->
+        <div class="table-wrapper overflow-x-auto rounded-xl border border-gray-200 bg-white shadow-sm">
+            <table id="ganttTable" class="w-full min-w-[1600px] text-sm">
+                <thead id="tableHeader"></thead>
+                <tbody id="tableBody"></tbody>
+            </table>
+        </div>
+        <div class="mt-3 text-sm text-gray-600">
+            <i class="fa fa-square text-blue-500 mr-1"></i> 蓝色块 = 计划时段 (基于"计划时段"列) | 
+            <i class="fa fa-square text-green-500 mr-1"></i> 绿色块 = 实际时段 (基于"实际时段"列)
+        </div>
+    </div>
+
+    <!-- 编辑项目模态框 -->
+    <div id="projectEditModal" class="modal fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 hidden">
+        <div class="modal-content bg-white rounded-2xl w-full max-w-md p-6 shadow-2xl transform transition-all">
+            <h3 class="text-lg font-bold text-gray-800 mb-4">✏️ 编辑项目信息</h3>
+            <div class="modal-field mb-4">
+                <label class="block text-sm font-semibold text-gray-700 mb-1">项目名称</label>
+                <input type="text" id="editProjectName" placeholder="项目名称" 
+                       class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary">
+            </div>
+            <div class="modal-field mb-4">
+                <label class="block text-sm font-semibold text-gray-700 mb-1">负责人</label>
+                <input type="text" id="editLeader" placeholder="例如 张工" 
+                       class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary">
+            </div>
+            <div class="modal-field mb-4">
+                <label class="block text-sm font-semibold text-gray-700 mb-1">出货时间</label>
+                <input type="text" id="editDeliveryDate" placeholder="例如 2026-03-20 或 3月20日" 
+                       class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary">
+            </div>
+            <div class="modal-field mb-4">
+                <label class="block text-sm font-semibold text-gray-700 mb-1">实施时间段</label>
+                <input type="text" id="editImplementationPeriod" placeholder="例如 3/18~3/31" 
+                       class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary">
+            </div>
+            <div class="modal-field mb-4">
+                <label class="block text-sm font-semibold text-gray-700 mb-1">执行状态</label>
+                <select id="editExecStatus" class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary">
+                    <option value="进行中">进行中</option>
+                    <option value="已完成">已完成</option>
+                    <option value="延迟">延迟</option>
+                    <option value="计划">计划</option>
+                </select>
+            </div>
+            <div class="modal-field mb-6">
+                <label class="block text-sm font-semibold text-gray-700 mb-1">执行进度 (0-100)</label>
+                <input type="number" id="editProgress" min="0" max="100" step="1" value="0" 
+                       class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary">
+            </div>
+            <div class="modal-actions flex justify-end gap-3">
+                <button class="btn btn-secondary" id="closeModalBtn">取消</button>
+                <button class="btn btn-primary" id="saveProjectBtn">保存</button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script>
+    (function() {
+        // ---------- 全局数据 ----------
+        let projects = [];
+        let currentProjectId = null;
+        let editingTaskId = null;
+        let editingProjectId = null;
+        let projectStatusChart = null;
+        let taskCompletionChart = null;
+
+        // ---------- 固定日期轴 2026/3/4 ~ 2026/3/10 ----------
+        function generateDateHeaders() {
+            const start = new Date(2026, 2, 4);
+            const end = new Date(2026, 2, 10);
+            const dates = [];
+            const dateObjs = [];
+            let cur = new Date(start);
+            while (cur <= end) {
+                dateObjs.push(new Date(cur));
+                dates.push(`${cur.getMonth()+1}/${cur.getDate()}`);
+                cur.setDate(cur.getDate() + 1);
+            }
+            return { dates, dateObjs };
+        }
+        const { dates, dateObjs } = generateDateHeaders();
+
+        // ---------- 数据持久化 ----------
+        function saveToLocalStorage() {
+            try {
+                localStorage.setItem('ga_projects', JSON.stringify(projects));
+                console.log('数据已保存到本地存储');
+            } catch (error) {
+                console.error('保存数据失败:', error);
+            }
+        }
+
+        function loadFromLocalStorage() {
+            try {
+                const saved = localStorage.getItem('ga_projects');
+                if (saved) {
+                    projects = JSON.parse(saved);
+                    console.log('从本地存储加载数据成功');
+                } else {
+                    initSampleData();
+                }
+            } catch (error) {
+                console.error('加载数据失败:', error);
+                initSampleData();
+            }
+        }
+
+        // ---------- 预置示例数据 ----------
+        function initSampleData() {
+            projects = [
+                {
+                    id: 'proj_1',
+                    name: '群创KSAO改造',
+                    leader: '张工',
+                    deliveryDate: '3月18日',
+                    implementationPeriod: '3/18~3/31', // 新增实施时间段字段
+                    execStatus: '进行中',
+                    progress: 65,
+                    tasks: [
+                        { id: 't1', taskName: '群创KSAO改造', delivery: '3月18日', modify: '3/18~3/31', status: '进行中', leader: '志飞', equipment: '改造设备', planPeriod: '3/18~3/31', actualPeriod: '3/18~3/31' },
+                        { id: 't2', taskName: '电气采购', delivery: '', modify: 'Plan', status: 'Plan', leader: '', equipment: '', planPeriod: '3/6~3/8', actualPeriod: '3/6~3/8' },
+                        { id: 't3', taskName: '出BOM', delivery: '', modify: '', status: 'Plan', leader: '', equipment: '', planPeriod: '3/4~3/6', actualPeriod: '3/4~3/6' }
+                    ]
+                },
+                {
+                    id: 'proj_2',
+                    name: '友达5代线升级',
+                    leader: '李工',
+                    deliveryDate: '4月5日',
+                    implementationPeriod: '3/20~4/5', // 新增实施时间段字段
+                    execStatus: '计划',
+                    progress: 20,
+                    tasks: [
+                        { id: 't4', taskName: '设备评估', delivery: '3月25日', modify: '3/25~3/30', status: 'Plan', leader: '王明', equipment: '评估设备', planPeriod: '3/20~3/25', actualPeriod: '3/20~3/25' },
+                        { id: 't5', taskName: '方案设计', delivery: '', modify: '', status: 'Plan', leader: '李工', equipment: '', planPeriod: '3/26~4/5', actualPeriod: '3/26~4/5' }
+                    ]
+                },
+                {
+                    id: 'proj_3',
+                    name: '夏普OLED产线改造',
+                    leader: '王工',
+                    deliveryDate: '4月20日',
+                    implementationPeriod: '4/10~4/25', // 新增实施时间段字段
+                    execStatus: '已完成',
+                    progress: 100,
+                    tasks: [
+                        { id: 't6', taskName: 'OLED产线改造', delivery: '4月20日', modify: '4/10~4/20', status: '已完成', leader: '赵工', equipment: 'OLED设备', planPeriod: '4/10~4/20', actualPeriod: '4/10~4/20' },
+                        { id: 't7', taskName: '调试运行', delivery: '', modify: '', status: '已完成', leader: '王工', equipment: '', planPeriod: '4/21~4/25', actualPeriod: '4/21~4/25' }
+                    ]
+                }
+            ];
+        }
+
+        // ---------- 辅助: 解析时段 ----------
+        function parsePlanPeriod(periodStr) {
+            if (!periodStr) return null;
+            const cleaned = periodStr.replace(/\s+/g, '');
+            const match = cleaned.match(/(\d{1,2})\/(\d{1,2})\s*[-~]\s*(\d{1,2})\/(\d{1,2})/);
+            if (!match) return null;
+            const startMonth = parseInt(match[1], 10), startDay = parseInt(match[2], 10);
+            const endMonth = parseInt(match[3], 10), endDay = parseInt(match[4], 10);
+            const startDate = new Date(2026, startMonth - 1, startDay, 0, 0, 0);
+            const endDate = new Date(2026, endMonth - 1, endDay, 0, 0, 0);
+            if (isNaN(startDate.getTime()) || isNaN(endDate.getTime())) return null;
+            return { start: startDate, end: endDate };
+        }
+
+        function isDateInRange(dateObj, range) {
+            if (!range) return false;
+            const d = new Date(dateObj);
+            d.setHours(0, 0, 0, 0);
+            return d >= range.start && d <= range.end;
+        }
+
+        // ---------- 渲染项目总览卡片 ----------
+        function renderDashboard() {
+            const container = document.getElementById('projectList');
+            let html = '';
+            projects.forEach(proj => {
+                const progressValue = proj.progress !== undefined ? proj.progress : 0;
+                const statusColor = getStatusColor(proj.execStatus);
+                
+                html += `
+                <div class="project-card bg-white border border-gray-200 rounded-xl p-5 shadow-card cursor-pointer hover:shadow-lg" data-proj-id="${proj.id}">
+                    <div class="project-header flex justify-between items-start mb-3">
+                        <h3 class="text-lg font-semibold text-gray-800 truncate" title="${proj.name}">📁 ${proj.name}</h3>
+                        <div class="project-actions flex gap-1">
+                            <button class="edit-project p-1 text-gray-500 hover:text-primary hover:bg-blue-50 rounded-full transition-all-300" title="编辑项目信息">
+                                <i class="fa fa-pencil"></i>
+                            </button>
+                            <button class="view-detail p-1 text-gray-500 hover:text-primary hover:bg-blue-50 rounded-full transition-all-300" title="查看甘特">
+                                <i class="fa fa-search"></i>
+                            </button>
+                            <button class="delete-project p-1 text-gray-500 hover:text-danger hover:bg-red-50 rounded-full transition-all-300" title="删除项目">
+                                <i class="fa fa-trash"></i>
+                            </button>
+                        </div>
+                    </div>
+                    <div class="space-y-2">
+                        <div class="project-detail-item flex items-center gap-2">
+                            <span class="label text-sm font-medium text-gray-500 min-w-[60px]">负责人</span>
+                            <span class="value bg-blue-50 text-blue-700 px-3 py-1 rounded-full text-xs font-medium">${proj.leader || '—'}</span>
+                        </div>
+                        <div class="project-detail-item flex items-center gap-2">
+                            <span class="label text-sm font-medium text-gray-500 min-w-[60px]">出货时间</span>
+                            <span class="value bg-blue-50 text-blue-700 px-3 py-1 rounded-full text-xs font-medium">${proj.deliveryDate || '—'}</span>
+                        </div>
+                        <!-- 新增实施时间段展示 -->
+                        <div class="project-detail-item flex items-center gap-2">
+                            <span class="label text-sm font-medium text-gray-500 min-w-[60px]">实施时段</span>
+                            <span class="value bg-purple-50 text-purple-700 px-3 py-1 rounded-full text-xs font-medium">${proj.implementationPeriod || '—'}</span>
+                        </div>
+                        <div class="project-detail-item flex items-center gap-2">
+                            <span class="label text-sm font-medium text-gray-500 min-w-[60px]">执行状态</span>
+                            <span class="value bg-${statusColor.bg} text-${statusColor.text} px-3 py-1 rounded-full text-xs font-medium">${proj.execStatus || '—'}</span>
+                        </div>
+                        <div class="progress-area flex items-center gap-2 mt-3">
+                            <span class="label text-sm font-medium text-gray-500 min-w-[60px]">进度</span>
+                            <div class="progress-bar-bg bg-gray-200 h-2 rounded-full flex-1 overflow-hidden">
+                                <div class="progress-bar-fill bg-primary h-full rounded-full" style="width:${progressValue}%;"></div>
+                            </div>
+                            <span class="progress-percent text-sm font-semibold text-gray-700">${progressValue}%</span>
+                        </div>
+                    </div>
+                    <div class="mt-3 text-xs text-gray-500">📋 任务数: ${proj.tasks.length}</div>
+                </div>`;
+            });
+            container.innerHTML = html || '<div class="col-span-full py-12 text-center text-gray-500">暂无项目，点击"新建项目"创建</div>';
+
+            // 卡片事件
+            document.querySelectorAll('.project-card').forEach(card => {
+                const projId = card.dataset.projId;
+                card.addEventListener('click', (e) => {
+                    if (e.target.closest('button')) return;
+                    openProject(projId);
+                });
+                card.querySelector('.view-detail')?.addEventListener('click', (e) => {
+                    e.stopPropagation();
+                    openProject(projId);
+                });
+                card.querySelector('.delete-project')?.addEventListener('click', (e) => {
+                    e.stopPropagation();
+                    if (confirm(`删除项目「${projects.find(p => p.id === projId)?.name}」？`)) {
+                        projects = projects.filter(p => p.id !== projId);
+                        saveToLocalStorage();
+                        if (currentProjectId === projId) showDashboard();
+                        renderDashboard();
+                        renderStats();
+                        renderKanban();
+                    }
+                });
+                card.querySelector('.edit-project')?.addEventListener('click', (e) => {
+                    e.stopPropagation();
+                    openEditProjectModal(projId);
+                });
+            });
+        }
+
+        // 获取状态对应的颜色
+        function getStatusColor(status) {
+            switch (status) {
+                case '已完成': return { bg: 'green-100', text: 'green-700' };
+                case '进行中': return { bg: 'blue-100', text: 'blue-700' };
+                case '延迟': return { bg: 'red-100', text: 'red-700' };
+                case '计划': return { bg: 'yellow-100', text: 'yellow-700' };
+                default: return { bg: 'gray-100', text: 'gray-700' };
+            }
+        }
+
+        // ---------- 看板视图 ----------
+        function renderKanban() {
+            const container = document.getElementById('kanbanColumns');
+            const statuses = ['计划', '进行中', '已完成', '延迟'];
+            const statusNames = { '计划': '📋 计划', '进行中': '🔄 进行中', '已完成': '✅ 已完成', '延迟': '⚠️ 延迟' };
+            const statusColors = { '计划': 'bg-yellow-50 border-yellow-200', '进行中': 'bg-blue-50 border-blue-200', '已完成': 'bg-green-50 border-green-200', '延迟': 'bg-red-50 border-red-200' };
+            
+            let html = '';
+            statuses.forEach(status => {
+                const tasks = getAllTasksByStatus(status);
+                html += `
+                <div class="kanban-column ${statusColors[status]} border rounded-xl p-3">
+                    <div class="column-header font-semibold mb-3 pb-2 border-b border-gray-200">
+                        ${statusNames[status]} (${tasks.length})
+                    </div>
+                    <div class="tasks-container space-y-2 min-h-[200px]" data-status="${status}">
+                        ${tasks.map(task => `
+                            <div class="kanban-card bg-white p-3 rounded-lg shadow-sm border border-gray-200 cursor-pointer hover:shadow-md transition-all-300" 
+                                 data-task-id="${task.id}" data-proj-id="${task.projId}">
+                                <div class="font-medium text-sm mb-1 truncate" title="${task.taskName}">${task.taskName}</div>
+                                <div class="text-xs text-gray-500 mb-2">${task.projName}</div>
+                                ${task.leader ? `<div class="text-xs bg-blue-50 text-blue-700 px-2 py-0.5 rounded-full inline-block">👤 ${task.leader}</div>` : ''}
+                                ${task.planPeriod ? `<div class="text-xs text-gray-600 mt-1">📅 ${task.planPeriod}</div>` : ''}
+                            </div>
+                        `).join('')}
+                        ${tasks.length === 0 ? `<div class="text-gray-400 text-sm text-center py-4">暂无任务</div>` : ''}
+                    </div>
+                </div>`;
+            });
+            container.innerHTML = html;
+
+            // 看板卡片点击事件
+            document.querySelectorAll('.kanban-card').forEach(card => {
+                card.addEventListener('click', () => {
+                    const projId = card.dataset.projId;
+                    const taskId = card.dataset.taskId;
+                    openProject(projId);
+                    setTimeout(() => {
+                        loadTaskToForm(taskId);
+                    }, 100);
+                });
+            });
+        }
+
+        // 获取所有指定状态的任务
+        function getAllTasksByStatus(status) {
+            const tasks = [];
+            projects.forEach(proj => {
+                proj.tasks.forEach(task => {
+                    if (task.status === status) {
+                        tasks.push({
+                            ...task,
+                            projId: proj.id,
+                            projName: proj.name
+                        });
+                    }
+                });
+            });
+            return tasks;
+        }
+
+        // ---------- 数据统计视图 ----------
+        function renderStats() {
+            updateSummaryCards();
+            renderProjectStatusChart();
+            renderTaskCompletionChart();
+        }
+
+        function updateSummaryCards() {
+            document.getElementById('totalProjects').textContent = projects.length;
+            document.getElementById('completedProjects').textContent = projects.filter(p => p.execStatus === '已完成').length;
+            
+            const totalTasks = projects.reduce((sum, proj) => sum + proj.tasks.length, 0);
+            document.getElementById('totalTasks').textContent = totalTasks;
+        }
+
+        function renderProjectStatusChart() {
+            const ctx = document.getElementById('projectStatusChart').getContext('2d');
+            
+            // 销毁现有图表
+            if (projectStatusChart) {
+                projectStatusChart.destroy();
+            }
+            
+            const statusCounts = {
+                '计划': 0,
+                '进行中': 0,
+                '已完成': 0,
+                '延迟': 0
+            };
+            
+            projects.forEach(proj => {
+                if (statusCounts.hasOwnProperty(proj.execStatus)) {
+                    statusCounts[proj.execStatus]++;
+                }
+            });
+            
+            projectStatusChart = new Chart(ctx, {
+                type: 'doughnut',
+                data: {
+                    labels: Object.keys(statusCounts),
+                    datasets: [{
+                        data: Object.values(statusCounts),
+                        backgroundColor: [
+                            '#fbbf24', // 计划 - 黄色
+                            '#3b82f6', // 进行中 - 蓝色
+                            '#10b981', // 已完成 - 绿色
+                            '#ef4444'  // 延迟 - 红色
+                        ],
+                        borderWidth: 2,
+                        borderColor: '#ffffff'
+                    }]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    plugins: {
+                        legend: {
+                            position: 'bottom'
+                        }
+                    }
+                }
+            });
+        }
+
+        function renderTaskCompletionChart() {
+            const ctx = document.getElementById('taskCompletionChart').getContext('2d');
+            
+            // 销毁现有图表
+            if (taskCompletionChart) {
+                taskCompletionChart.destroy();
+            }
+            
+            // 模拟过去7天的任务完成数据
+            const days = [];
+            const completedTasks = [];
+            const totalTasks = [];
+            
+            for (let i = 6; i >= 0; i--) {
+                const date = new Date();
+                date.setDate(date.getDate() - i);
+                days.push(`${date.getMonth() + 1}/${date.getDate()}`);
+                
+                // 随机生成模拟数据
+                const completed = Math.floor(Math.random() * 5);
+                const total = completed + Math.floor(Math.random() * 8);
+                completedTasks.push(completed);
+                totalTasks.push(total);
+            }
+            
+            taskCompletionChart = new Chart(ctx, {
+                type: 'line',
+                data: {
+                    labels: days,
+                    datasets: [
+                        {
+                            label: '已完成任务',
+                            data: completedTasks,
+                            borderColor: '#10b981',
+                            backgroundColor: 'rgba(16, 185, 129, 0.1)',
+                            tension: 0.4,
+                            fill: true
+                        },
+                        {
+                            label: '总任务',
+                            data: totalTasks,
+                            borderColor: '#3b82f6',
+                            backgroundColor: 'rgba(59, 130, 246, 0.1)',
+                            tension: 0.4,
+                            fill: true
+                        }
+                    ]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    scales: {
+                        y: {
+                            beginAtZero: true,
+                            ticks: {
+                                stepSize: 1
+                            }
+                        }
+                    },
+                    plugins: {
+                        legend: {
+                            position: 'bottom'
+                        }
+                    }
+                }
+            });
+        }
+
+        // ---------- 项目编辑模态框 ----------
+        function openEditProjectModal(projId) {
+            const proj = projects.find(p => p.id === projId);
+            if (!proj) return;
+            editingProjectId = projId;
+            document.getElementById('editProjectName').value = proj.name || '';
+            document.getElementById('editLeader').value = proj.leader || '';
+            document.getElementById('editDeliveryDate').value = proj.deliveryDate || '';
+            // 新增实施时间段字段赋值
+            document.getElementById('editImplementationPeriod').value = proj.implementationPeriod || '';
+            document.getElementById('editExecStatus').value = proj.execStatus || '进行中';
+            document.getElementById('editProgress').value = proj.progress !== undefined ? proj.progress : 0;
+            document.getElementById('projectEditModal').classList.remove('hidden');
+        }
+
+        function closeModal() {
+            document.getElementById('projectEditModal').classList.add('hidden');
+            editingProjectId = null;
+        }
+
+        function handleModalSave() {
+            const name = document.getElementById('editProjectName').value.trim() || '未命名';
+            const leader = document.getElementById('editLeader').value.trim();
+            const delivery = document.getElementById('editDeliveryDate').value.trim();
+            // 获取实施时间段输入值
+            const implementationPeriod = document.getElementById('editImplementationPeriod').value.trim();
+            const status = document.getElementById('editExecStatus').value;
+            let progress = parseInt(document.getElementById('editProgress').value, 10);
+            if (isNaN(progress)) progress = 0;
+            progress = Math.min(100, Math.max(0, progress));
+
+            if (editingProjectId) {
+                // 编辑现有项目
+                const proj = projects.find(p => p.id === editingProjectId);
+                if (proj) {
+                    proj.name = name;
+                    proj.leader = leader;
+                    proj.deliveryDate = delivery;
+                    proj.implementationPeriod = implementationPeriod; // 保存实施时间段
+                    proj.execStatus = status;
+                    proj.progress = progress;
+                }
+            } else {
+                // 新建项目
+                const newId = 'proj_' + Date.now() + Math.random().toString(36).substr(2, 5);
+                projects.push({
+                    id: newId,
+                    name: name,
+                    leader: leader,
+                    deliveryDate: delivery,
+                    implementationPeriod: implementationPeriod, // 保存实施时间段
+                    execStatus: status,
+                    progress: progress,
+                    tasks: []
+                });
+            }
+            saveToLocalStorage();
+            closeModal();
+            renderDashboard();
+            renderStats();
+            renderKanban();
+        }
+
+        // ---------- 项目详情页函数 ----------
+        function openProject(projId) {
+            currentProjectId = projId;
+            editingTaskId = null;
+            document.getElementById('dashboardView').classList.remove('active');
+            document.getElementById('kanbanView').classList.remove('active');
+            document.getElementById('statsView').classList.remove('active');
+            document.getElementById('projectDetailView').classList.add('active');
+            renderProjectDetail();
+        }
+
+        function showDashboard() {
+            document.getElementById('dashboardView').classList.add('active');
+            document.getElementById('kanbanView').classList.remove('active');
+            document.getElementById('statsView').classList.remove('active');
+            document.getElementById('projectDetailView').classList.remove('active');
+            currentProjectId = null;
+        }
+
+        function showKanban() {
+            document.getElementById('dashboardView').classList.remove('active');
+            document.getElementById('kanbanView').classList.add('active');
+            document.getElementById('statsView').classList.remove('active');
+            document.getElementById('projectDetailView').classList.remove('active');
+            currentProjectId = null;
+        }
+
+        function showStats() {
+            document.getElementById('dashboardView').classList.remove('active');
+            document.getElementById('kanbanView').classList.remove('active');
+            document.getElementById('statsView').classList.add('active');
+            document.getElementById('projectDetailView').classList.remove('active');
+            currentProjectId = null;
+        }
+
+        function renderProjectDetail() {
+            const project = projects.find(p => p.id === currentProjectId);
+            if (!project) {
+                showDashboard();
+                return;
+            }
+            document.getElementById('currentProjectName').innerText = project.name;
+            document.getElementById('taskCountBadge').innerText = project.tasks.length + ' 个任务';
+            const thead = document.getElementById('tableHeader');
+            let headerHtml = `
+                <tr>
+                    <th class="w-28 bg-blue-600 text-white">出货时间</th>
+                    <th class="w-28 bg-blue-600 text-white">改机时间</th>
+                    <th class="w-24 bg-blue-600 text-white">负责人</th>
+                    <th class="w-32 bg-blue-600 text-white">任务</th>
+                    <th class="w-24 bg-blue-600 text-white">执行状况</th>
+                    <th class="w-28 bg-blue-600 text-white">时段</th>`;
+            dates.forEach(d => headerHtml += `<th class="date-th w-16 bg-blue-600 text-white">${d}</th>`);
+            headerHtml += '</tr>';
+            thead.innerHTML = headerHtml;
+
+            const tbody = document.getElementById('tableBody');
+            let rows = '';
+            project.tasks.forEach(task => {
+                const planRange = parsePlanPeriod(task.planPeriod);
+                const actualRange = parsePlanPeriod(task.actualPeriod);
+                const statusColor = getStatusColor(task.status);
+                
+                // 计划行
+                rows += `<tr data-task-id="${task.id}" class="hover:bg-gray-50 transition-all-300">`;
+                rows += `<td class="border">${task.delivery || '—'}</td>`;
+                rows += `<td class="border">${task.modify || '—'}</td>`;
+                rows += `<td class="border">${task.leader || '—'}</td>`;
+                rows += `<td class="border font-medium">${task.taskName || '—'}</td>`;
+                rows += `<td class="border"><span class="status-badge bg-${statusColor.bg} text-${statusColor.text} px-2 py-1 rounded-full text-xs font-medium">计划</span></td>`;
+                rows += `<td class="border">${task.planPeriod || '—'}</td>`;
+                for (let i = 0; i < dateObjs.length; i++) {
+                    const inRange = planRange ? isDateInRange(dateObjs[i], planRange) : false;
+                    rows += `<td class="date-cell gantt-cell border ${inRange ? 'bg-blue-200 border-b-2 border-blue-500' : ''}"></td>`;
+                }
+                rows += `</tr>`;
+                
+                // 实际行
+                rows += `<tr data-task-id="${task.id}" class="hover:bg-gray-50 transition-all-300">`;
+                rows += `<td class="border">${task.delivery || '—'}</td>`;
+                rows += `<td class="border">${task.modify || '—'}</td>`;
+                rows += `<td class="border">${task.leader || '—'}</td>`;
+                rows += `<td class="border font-medium">${task.taskName || '—'}</td>`;
+                rows += `<td class="border"><span class="status-badge bg-green-100 text-green-700 px-2 py-1 rounded-full text-xs font-medium">实际</span></td>`;
+                rows += `<td class="border">${task.actualPeriod || '—'}</td>`;
+                for (let i = 0; i < dateObjs.length; i++) {
+                    const inRange = actualRange ? isDateInRange(dateObjs[i], actualRange) : false;
+                    rows += `<td class="date-cell gantt-cell border ${inRange ? 'bg-green-200 border-b-2 border-green-500' : ''}"></td>`;
+                }
+                rows += `</tr>`;
+                
+                // 操作行
+                rows += `<tr data-task-id="${task.id}" class="hover:bg-gray-50 transition-all-300">`;
+                rows += `<td colspan="6" class="border">
+                    <div class="flex gap-1">
+                        <button class="action-btn edit p-1 text-gray-500 hover:text-primary hover:bg-blue-50 rounded transition-all-300" data-task-id="${task.id}" title="编辑任务">
+                            <i class="fa fa-pencil"></i>
+                        </button>
+                        <button class="action-btn del p-1 text-gray-500 hover:text-danger hover:bg-red-50 rounded transition-all-300" data-task-id="${task.id}" title="删除任务">
+                            <i class="fa fa-trash"></i>
+                        </button>
+                    </div>
+                </td>`;
+                for (let i = 0; i < dateObjs.length; i++) {
+                    rows += `<td class="border"></td>`;
+                }
+                rows += `</tr>`;
+            });
+            if (project.tasks.length === 0) {
+                rows = `<tr><td colspan="${6 + dates.length}" class="empty-row py-8 text-center text-gray-500">暂无任务，请使用上方表单添加</td></tr>`;
+            }
+            tbody.innerHTML = rows;
+
+            tbody.querySelectorAll('.edit').forEach(btn => {
+                btn.addEventListener('click', e => {
+                    e.stopPropagation();
+                    loadTaskToForm(btn.dataset.taskId);
+                });
+            });
+            tbody.querySelectorAll('.del').forEach(btn => {
+                btn.addEventListener('click', e => {
+                    e.stopPropagation();
+                    deleteTask(btn.dataset.taskId);
+                });
+            });
+        }
+
+        // ---------- 任务表单操作 ----------
+        const taskNameInp = document.getElementById('taskNameInput');
+        const deliveryInp = document.getElementById('deliveryInput');
+        const modifyInp = document.getElementById('modifyInput');
+        const statusInp = document.getElementById('statusInput');
+        const leaderInp = document.getElementById('leaderInput');
+        const equipmentInp = document.getElementById('equipmentInput');
+        const planPeriodInp = document.getElementById('planPeriodInput');
+        const actualPeriodInp = document.getElementById('actualPeriodInput');
+
+        function loadTaskToForm(taskId) {
+            const proj = projects.find(p => p.id === currentProjectId);
+            if (!proj) return;
+            const task = proj.tasks.find(t => t.id === taskId);
+            if (!task) return;
+            taskNameInp.value = task.taskName || '';
+            deliveryInp.value = task.delivery || '';
+            modifyInp.value = task.modify || '';
+            statusInp.value = task.status || 'Plan';
+            leaderInp.value = task.leader || '';
+            equipmentInp.value = task.equipment || '';
+            planPeriodInp.value = task.planPeriod || '';
+            actualPeriodInp.value = task.actualPeriod || '';
+            editingTaskId = taskId;
+        }
+
+        function clearTaskForm() {
+            taskNameInp.value = '新任务';
+            deliveryInp.value = '';
+            modifyInp.value = '';
+            statusInp.value = 'Plan';
+            leaderInp.value = '';
+            equipmentInp.value = '';
+            planPeriodInp.value = '3/6~3/8';
+            actualPeriodInp.value = '3/6~3/8';
+            editingTaskId = null;
+        }
+
+        function saveTask() {
+            const proj = projects.find(p => p.id === currentProjectId);
+            if (!proj) return;
+            const taskData = {
+                taskName: taskNameInp.value.trim() || '未命名',
+                delivery: deliveryInp.value.trim(),
+                modify: modifyInp.value.trim(),
+                status: statusInp.value.trim() || 'Plan',
+                leader: leaderInp.value.trim(),
+                equipment: equipmentInp.value.trim(),
+                planPeriod: planPeriodInp.value.trim(),
+                actualPeriod: actualPeriodInp.value.trim()
+            };
+            if (!taskData.planPeriod) {
+                alert('请填写计划时段');
+                return;
+            }
+            if (editingTaskId) {
+                const index = proj.tasks.findIndex(t => t.id === editingTaskId);
+                if (index !== -1) proj.tasks[index] = { ...proj.tasks[index], ...taskData, id: editingTaskId };
+            } else {
+                const newTask = { ...taskData, id: 'task_' + Date.now() + Math.random() };
+                proj.tasks.push(newTask);
+            }
+            saveToLocalStorage();
+            clearTaskForm();
+            renderProjectDetail();
+            renderDashboard();
+            renderKanban();
+            renderStats();
+        }
+
+        function deleteTask(taskId) {
+            const proj = projects.find(p => p.id === currentProjectId);
+            if (!proj) return;
+            if (confirm('删除此任务？')) {
+                proj.tasks = proj.tasks.filter(t => t.id !== taskId);
+                saveToLocalStorage();
+                if (editingTaskId === taskId) clearTaskForm();
+                renderProjectDetail();
+                renderDashboard();
+                renderKanban();
+                renderStats();
+            }
+        }
+
+        function deleteCurrentProject() {
+            if (!currentProjectId) return;
+            if (confirm('确定删除整个项目吗？')) {
+                projects = projects.filter(p => p.id !== currentProjectId);
+                saveToLocalStorage();
+                showDashboard();
+                renderDashboard();
+                renderKanban();
+                renderStats();
+            }
+        }
+
+        // ---------- 事件绑定 ----------
+        document.getElementById('newProjectBtn').addEventListener('click', () => {
+            editingProjectId = null;
+            document.getElementById('editProjectName').value = '新项目';
+            document.getElementById('editLeader').value = '';
+            document.getElementById('editDeliveryDate').value = '';
+            document.getElementById('editImplementationPeriod').value = ''; // 初始化实施时间段输入框
+            document.getElementById('editExecStatus').value = '进行中';
+            document.getElementById('editProgress').value = '0';
+            document.getElementById('projectEditModal').classList.remove('hidden');
+        });
+
+        document.getElementById('backToDashboardBtn').addEventListener('click', showDashboard);
+        document.getElementById('deleteProjectBtn').addEventListener('click', deleteCurrentProject);
+        document.getElementById('saveTaskBtn').addEventListener('click', saveTask);
+        document.getElementById('cancelTaskEditBtn').addEventListener('click', clearTaskForm);
+
+        // 模态框事件
+        document.getElementById('closeModalBtn').addEventListener('click', closeModal);
+        document.getElementById('saveProjectBtn').addEventListener('click', handleModalSave);
+        window.addEventListener('click', (e) => {
+            if (e.target.id === 'projectEditModal') closeModal();
+        });
+
+        // 导航标签事件
+        document.querySelectorAll('.btn-nav').forEach(btn => {
+            btn.addEventListener('click', () => {
+                const view = btn.dataset.view;
+                if (view === 'dashboardView') showDashboard();
+                else if (view === 'kanbanView') showKanban();
+                else if (view === 'statsView') showStats();
+                
+                // 更新导航标签状态
+                document.querySelectorAll('.btn-nav').forEach(b => b.classList.remove('active', 'text-primary', 'font-semibold'));
+                btn.classList.add('active', 'text-primary', 'font-semibold');
+            });
+        });
+
+        // 初始化
+        loadFromLocalStorage();
+        renderDashboard();
+        renderKanban();
+        renderStats();
+        
+        // 设置默认激活的导航标签
+        document.querySelector('[data-view="dashboardView"]').classList.add('active', 'text-primary', 'font-semibold');
+        
+    })();
+</script>
+</body>
+</html>
